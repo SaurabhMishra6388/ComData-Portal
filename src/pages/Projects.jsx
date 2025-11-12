@@ -23,6 +23,8 @@ import {
   Trash2,
   ChevronLeft, // For pagination
   ChevronRight, // For pagination
+  Search, // NEW: For the search icon
+  X, // NEW: For clearing the search
 } from "lucide-react";
 import {
   Table,
@@ -40,6 +42,8 @@ import {
   DialogDescription,
   DialogFooter, // Import DialogFooter for buttons
 } from "@/components/ui/dialog";
+// Assuming you have an Input component for the search box
+import { Input } from "@/components/ui/input"; // ADDED: Input component
 import { fetchprojectData, fetchProjectDetailsById, deleteProject } from "../../api";
 import { toast } from "@/components/ui/use-toast";
 
@@ -75,7 +79,7 @@ const getStatusBadgeStyle = (status) => {
   }
 };
 
-// --- ProjectDetailsPopup Component (FIXED to use available fields) ---
+// --- ProjectDetailsPopup Component ---
 const ProjectDetailsPopup = ({ project }) => {
   // Destructure properties available from the backend (name_project, status, etc.)
   const {
@@ -153,7 +157,8 @@ const ProjectDetailsPopup = ({ project }) => {
   );
 };
 
-export default function Projects() {
+// FIX: Accept isAdmin prop from the router wrapper
+export default function Projects({ isAdmin }) {
   const [projects, setProjects] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -163,11 +168,15 @@ export default function Projects() {
   const [selectedProject, setSelectedProject] = useState(null);
   const [isDetailLoading, setIsDetailLoading] = useState(false);
   const [detailError, setDetailError] = useState(null);
-
+  
   // --- NEW STATE FOR DELETE CONFIRMATION ---
   const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
   const [projectToDeleteId, setProjectToDeleteId] = useState(null);
   // ------------------------------------------
+
+  // --- NEW STATE FOR SEARCH ---
+  const [searchTerm, setSearchTerm] = useState("");
+  // ----------------------------
 
 const handleView = async (projectId) => {
     // Clear previous state and open the popup
@@ -231,6 +240,7 @@ const handleView = async (projectId) => {
 
       setProjects(mappedData);
       setCurrentPage(1);
+
     } catch (err) {
       setError("Failed to fetch project data.");
       console.error("Fetch error: ", err);
@@ -246,12 +256,16 @@ const handleView = async (projectId) => {
 
   useEffect(() => {
     fetchprojectDetails();
-    //fetchProjectData();
   }, []);
 
   const formatDate = (isoString) => {
     if (!isoString) return "N/A";
     return isoString.substring(0, 10);
+  };
+
+  // Handler for Add Project
+  const handleAddProject = () => {
+    navigate("/add-project"); // Assuming your route for adding a project is '/add-project'
   };
 
   const handleEdit = (id) => {
@@ -290,17 +304,49 @@ const handleConfirmDelete = async () => {
 };
 // ----------------------------------------------------
 
+  // --- Search Filtering Logic ---
+  const filteredProjects = useMemo(() => {
+    if (!searchTerm) {
+      return projects;
+    }
+
+    const lowerCaseSearchTerm = searchTerm.toLowerCase();
+
+    return projects.filter((project) => {
+      // Search by project name, status, or ID
+      const nameMatch = project.name_project?.toLowerCase().includes(lowerCaseSearchTerm);
+      const statusMatch = project.status?.toLowerCase().includes(lowerCaseSearchTerm);
+      // Convert ID to string for searching
+      const idMatch = String(project.id)?.toLowerCase().includes(lowerCaseSearchTerm);
+
+      return nameMatch || statusMatch || idMatch;
+    });
+  }, [projects, searchTerm]);
+
+
   // --- Pagination Logic (Client-Side) ---
-  const totalPages = Math.ceil(projects.length / RECORDS_PER_PAGE);
+  const totalPages = Math.ceil(filteredProjects.length / RECORDS_PER_PAGE);
   const currentProjects = useMemo(() => {
+    // Reset page to 1 if search term changes
+    if (currentPage > totalPages && totalPages > 0) {
+      setCurrentPage(1);
+    }
+    
     const startIndex = (currentPage - 1) * RECORDS_PER_PAGE;
     const endIndex = startIndex + RECORDS_PER_PAGE;
-    return projects.slice(startIndex, endIndex);
-  }, [projects, currentPage]);
+    return filteredProjects.slice(startIndex, endIndex);
+  }, [filteredProjects, currentPage, totalPages]);
 
+
+  // Handler for search input change
+  const handleSearchChange = (event) => {
+    setSearchTerm(event.target.value);
+    setCurrentPage(1); // Reset to the first page on a new search
+  };
+  
   // --- Render Component ---
   return (
-    <div className="space-y-8">
+    <div className="space-y-0">
       <div>
         <h1 className="text-3xl font-bold mb-2">Projects</h1>
         <p className="text-muted-foreground">
@@ -309,13 +355,53 @@ const handleConfirmDelete = async () => {
       </div>
 
       <Card>
-        <CardHeader className="flex flex-row items-start justify-between">
+        <CardHeader className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
           <div>
             <CardTitle>Project Overview</CardTitle>
             <CardDescription>
               A list of all active and historical projects.
             </CardDescription>
           </div>
+          
+          <div className="flex flex-col sm:flex-row gap-4 w-full sm:w-auto">
+            {/* Search Input Field */}
+            <div className="relative w-full sm:w-64">
+              <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                type="text"
+                placeholder="Search by name, status, or ID..."
+                value={searchTerm}
+                onChange={handleSearchChange}
+                className="pl-8 pr-8"
+              />
+              {searchTerm && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="absolute right-0 top-1/2 -translate-y-1/2 h-8 w-8 text-muted-foreground hover:bg-transparent"
+                  onClick={() => {
+                    setSearchTerm("");
+                    setCurrentPage(1); // Reset page on clear
+                  }}
+                  title="Clear Search"
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              )}
+            </div>
+            
+            {/* Admin-only button: Rendered only if isAdmin is true */}
+            {isAdmin && (
+              <Button 
+                onClick={handleAddProject} 
+                className="flex items-center gap-1"
+              >
+                <Plus className="h-4 w-4" />
+                Add Project
+              </Button>
+            )}
+          </div>
+
         </CardHeader>
 
         <CardContent className="p-0">
@@ -351,13 +437,13 @@ const handleConfirmDelete = async () => {
                     {error}
                   </TableCell>
                 </TableRow>
-              ) : currentProjects.length === 0 ? (
+              ) : filteredProjects.length === 0 ? (
                 <TableRow>
                   <TableCell
                     colSpan={7}
                     className="text-center py-6 text-muted-foreground"
                   >
-                    No projects found.
+                    No projects found {searchTerm && `for "${searchTerm}"`}.
                   </TableCell>
                 </TableRow>
               ) : (
@@ -395,7 +481,7 @@ const handleConfirmDelete = async () => {
                       </TableCell>
                       <TableCell className="text-center">
                         <div className="flex gap-2 justify-center">
-                          {/* View Details Button - Now calls handleView */}
+                          {/* View Details Button - Unrestricted */}
                           <Button
                             variant="outline"
                             size="icon"
@@ -405,25 +491,28 @@ const handleConfirmDelete = async () => {
                             <Eye className="h-4 w-4" />
                           </Button>
 
-                          {/* Edit Button */}
-                          <Button
-                            variant="secondary"
-                            size="icon"
-                            onClick={() => handleEdit(project.id)}
-                            title="Edit Project"
-                          >
-                            <Edit className="h-4 w-4" />
-                          </Button>
+                          {/* Admin-only buttons: Rendered only if isAdmin is true */}
+                          {isAdmin && (
+                            <>
+                              <Button
+                                variant="secondary"
+                                size="icon"
+                                onClick={() => handleEdit(project.id)}
+                                title="Edit Project"
+                              >
+                                <Edit className="h-4 w-4" />
+                              </Button>
 
-                          {/* Delete Button - Now calls updated handleDelete */}
-                          <Button
-                            variant="destructive"
-                            size="icon"
-                            onClick={() => handleDelete(project.id)}
-                            title="Delete Project"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
+                              <Button
+                                variant="destructive"
+                                size="icon"
+                                onClick={() => handleDelete(project.id)}
+                                title="Delete Project"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </>
+                          )}
                         </div>
                       </TableCell>
                     </TableRow>
@@ -434,7 +523,7 @@ const handleConfirmDelete = async () => {
           </Table>
         </CardContent>
 
-        {/* --- Dialog Component for Project Details --- */}
+        {/* --- Dialog Component for Project Details (Unchanged) --- */}
         <Dialog open={isPopupOpen} onOpenChange={setIsPopupOpen}>
           <DialogContent className="sm:max-w-[600px]">
             <DialogHeader>
@@ -463,7 +552,7 @@ const handleConfirmDelete = async () => {
         </Dialog>
         {/* --- End Dialog Component --- */}
 
-        {/* --- Dialog Component for DELETE CONFIRMATION (NEW) --- */}
+        {/* --- Dialog Component for DELETE CONFIRMATION (Unchanged) --- */}
         <Dialog open={isDeleteConfirmOpen} onOpenChange={setIsDeleteConfirmOpen}>
           <DialogContent className="sm:max-w-[425px]">
             <DialogHeader>
@@ -500,12 +589,12 @@ const handleConfirmDelete = async () => {
         {/* --- End Delete Confirmation Dialog --- */}
 
         {/* --- Pagination Footer --- */}
-        {projects.length > RECORDS_PER_PAGE && (
+        {filteredProjects.length > 0 && ( // Display pagination only if there are filtered results
           <div className="flex items-center justify-between p-4 border-t">
             <div className="text-sm text-muted-foreground">
               Showing {(currentPage - 1) * RECORDS_PER_PAGE + 1} to{" "}
-              {Math.min(currentPage * RECORDS_PER_PAGE, projects.length)} of{" "}
-              {projects.length} projects
+              {Math.min(currentPage * RECORDS_PER_PAGE, filteredProjects.length)} of{" "}
+              {filteredProjects.length} projects {searchTerm && `(filtered from ${projects.length})`}
             </div>
             <div className="space-x-2">
               <Button

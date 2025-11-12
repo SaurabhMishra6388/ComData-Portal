@@ -64,31 +64,44 @@ app.use((req, res, next) => {
 
 // ⬅️ CHANGED: Use pool for all queries instead of client
 app.post('/api/login', async (req, res) => { 
-    const { email, password } = req.body;
+    // 🟢 FIX: Deconstruct the role from the request body
+    const { email, password, role } = req.body; 
 
-    if (!email || !password) {
-        return res.status(400).json({ error: 'Email and password are required.' });
+    if (!email || !password || !role) { // 🟢 Ensure role is required
+        return res.status(400).json({ error: 'Email, password, and role are required.' });
+    }
+    
+    // 🟢 FIX: Validate that the role is one of the allowed values before querying
+    const allowedRoles = ['client', 'admin'];
+    if (!allowedRoles.includes(role)) {
+        return res.status(400).json({ error: 'Invalid role selected.' });
     }
 
     try {
-        const result = await req.db.query( // req.db.query now works
+        // 🟢 FIX: Modify the SQL query to include the 'role'
+        const result = await req.db.query( 
             `SELECT id, email, password_hash, role, created_at 
              FROM cd.users 
-             WHERE email = $1;`,
-            [email]
+             WHERE email = $1 AND role = $2;`, // <--- Check both email AND role
+            [email, role] // <--- Pass both parameters
         );
 
         const user = result.rows[0];
 
+        // If the user is not found (meaning the email/role combination failed)
         if (!user) {
-            return res.status(401).json({ error: 'Invalid credentials.' });
+            // This error covers both 'email not found' or 'email found but role mismatch'
+            return res.status(401).json({ error: 'Invalid credentials or role mismatch.' });
         }
+        
+        // Compare password hash
         const isMatch = await bcrypt.compare(password, user.password_hash);
 
         if (!isMatch) {
-            return res.status(401).json({ error: 'Invalid credentials.' });
+            return res.status(401).json({ error: 'Invalid credentials or role mismatch.' });
         }
         
+        // Proceed with successful login
         const token = generateToken(user);
         res.status(200).json({
             success: true,
@@ -1121,45 +1134,49 @@ app.put('/api/renewals-updated/:id', async (req, res) => {
     return res.status(400).send({ message: 'Invalid Renewal ID format.' });
   }
 
-  // ✅ Destructure snake_case fields to match DB columns
   const {
     service,
     provider,
     domain,
     purchase_date,
-    renewal_date,    
+    renewal_date,
     cost,
     autoRenew,
+    daysuntilrenewal,
     icon
   } = req.body;
 
-  // ✅ Validation
+  // Validation
   if (
     !service ||
     !provider ||
     !domain ||
     !purchase_date ||
     !renewal_date ||
-    cost === undefined ||    
-    icon === undefined
+    cost === undefined ||
+    icon === undefined ||
+    daysuntilrenewal === undefined
   ) {
     return res.status(400).send({ message: 'All required fields must be provided.' });
   }
 
-  const autoRenewValue = typeof autoRenew === 'boolean' ? autoRenew : autoRenew === 'true';
+  const autoRenewValue =
+    typeof autoRenew === 'boolean' ? autoRenew : autoRenew === 'true';
 
+  // ✅ Clean SQL — no invisible chars or stray whitespace
   const queryText = `
     UPDATE cd.renewals_data
     SET 
-      service = $1, 
-      provider = $2, 
-      domain = $3, 
-      purchase_date = $4, 
-      renewal_date = $5,       
+      service = $1,
+      provider = $2,
+      domain = $3,
+      purchase_date = $4,
+      renewal_date = $5,
       cost = $6,
-      autorenew = $7, 
-      icon = $8
-    WHERE id = $9
+      autorenew = $7,
+      daysuntilrenewal = $8,
+      icon = $9
+    WHERE id = $10
     RETURNING *;
   `;
 
@@ -1168,9 +1185,10 @@ app.put('/api/renewals-updated/:id', async (req, res) => {
     provider,
     domain,
     purchase_date,
-    renewal_date,    
+    renewal_date,
     cost,
     autoRenewValue,
+    daysuntilrenewal,
     icon,
     renewalId
   ];
@@ -1187,14 +1205,15 @@ app.put('/api/renewals-updated/:id', async (req, res) => {
       updatedRenewal: result.rows[0]
     });
   } catch (err) {
-    console.error('Error executing update query:', err.stack);
+    console.error('❌ Error executing update query:', err.stack);
     res.status(500).send({
       message: 'An error occurred during the update.',
       error: err.message,
-      detail: err.stack.substring(0, 100)
+      detail: err.stack.substring(0, 200)
     });
   }
 });
+
 
 // DELETE /api/users/:id: Delete a user
 app.delete('/api/renewal-delete/:id', async (req, res) => {

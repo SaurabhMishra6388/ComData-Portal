@@ -576,7 +576,6 @@ export const updateRenewaldata = async (id, formData) => {
   try {
     const token = localStorage.getItem("token");
 
-    // ✅ Align with backend snake_case keys
     const payload = {
       service: formData.service,
       provider: formData.provider,
@@ -584,9 +583,10 @@ export const updateRenewaldata = async (id, formData) => {
       purchase_date: formData.purchase_date || formData.purchaseDate,
       renewal_date: formData.renewal_date || formData.renewalDate,
       daysuntilrenewal:
-        formData.daysuntilrenewal ||
-        formData.daysUntilRenewal ||
-        formData.days_until_renewal,
+        formData.daysuntilrenewal ??
+        formData.daysUntilRenewal ??
+        formData.days_until_renewal ??
+        0,
       cost: formData.cost,
       autoRenew: formData.autoRenew ?? formData.auto_renew ?? false,
       icon: formData.icon || formData.iconType || formData.icon_type || "default-icon",
@@ -594,7 +594,6 @@ export const updateRenewaldata = async (id, formData) => {
 
     console.log("🟡 Sending update payload:", payload);
 
-    // ✅ Simple field validation
     const required = [
       "service",
       "provider",
@@ -605,7 +604,10 @@ export const updateRenewaldata = async (id, formData) => {
       "daysuntilrenewal",
       "icon",
     ];
-    const missing = required.filter((key) => payload[key] === undefined || payload[key] === "");
+
+    const missing = required.filter(
+      (key) => payload[key] === undefined || payload[key] === ""
+    );
     if (missing.length > 0) {
       throw new Error(`Missing required fields: ${missing.join(", ")}`);
     }
@@ -632,8 +634,8 @@ export const updateRenewaldata = async (id, formData) => {
 
     throw new Error(
       error.response?.data?.error ||
-      error.response?.data?.message ||
-      error.message
+        error.response?.data?.message ||
+        error.message
     );
   }
 };

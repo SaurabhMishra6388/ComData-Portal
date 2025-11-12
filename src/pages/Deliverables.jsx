@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react"; // ADDED useMemo
 import { useNavigate } from "react-router-dom";
 import {
   FileText,
@@ -17,16 +17,16 @@ import {
   ChevronLeft,
   ChevronRight,
   ListCollapse,
+  PlusCircle,
+  Search, // ADDED
+  X, // ADDED
 } from "lucide-react";
 
 // Assuming this function correctly fetches the array of objects
-import { fetchdeliverablData, deletedeliverable } from "../../api"; // Make sure the path is correct
+import { fetchdeliverablData, deletedeliverable } from "../../api"; 
 
 // ------------------------------------------------------------------------------------------------
-// FIX: You MUST import your UI components (Dialog, Button, etc.) here for the code to work.
-// Example (if using shadcn/ui):
-// import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
-// import { Button } from "@/components/ui/button";
+// FIX: Mock UI components included below (replace with real imports like shadcn/ui if used)
 // ------------------------------------------------------------------------------------------------
 
 // Mock components to prevent errors in a plain environment (remove these if you import the real components)
@@ -36,16 +36,29 @@ const DialogHeader = ({ children }) => <div className="mb-4">{children}</div>;
 const DialogTitle = ({ children }) => <h2 className="text-xl font-bold">{children}</h2>;
 const DialogDescription = ({ children }) => <p className="text-sm text-gray-500">{children}</p>;
 const DialogFooter = ({ children }) => <div className="flex justify-end gap-3 mt-4">{children}</div>;
-const Button = ({ children, variant, onClick }) => (
+const Button = ({ children, variant, onClick, className, disabled }) => (
   <button 
     onClick={onClick} 
-    className={`px-4 py-2 text-sm rounded-md font-medium transition-colors 
-      ${variant === 'destructive' ? 'bg-red-600 text-white hover:bg-red-700' : 
-        variant === 'outline' ? 'border border-gray-300 text-gray-700 hover:bg-gray-100' : 
-        'bg-blue-600 text-white hover:bg-blue-700'}`}
+    disabled={disabled}
+    className={`${className} px-4 py-2 text-sm rounded-md font-medium transition-colors 
+      ${variant === 'destructive' ? 'bg-red-600 text-white hover:bg-red-700 disabled:bg-red-400' : 
+        variant === 'outline' ? 'border border-gray-300 text-gray-700 hover:bg-gray-100 disabled:text-gray-400' : 
+        'bg-blue-600 text-white hover:bg-blue-700 disabled:bg-blue-400'}
+        disabled:cursor-not-allowed`}
   >
     {children}
   </button>
+);
+// NEW: Mock Input component
+const Input = ({ type, placeholder, value, onChange, className }) => (
+  <input
+    type={type}
+    placeholder={placeholder}
+    value={value}
+    onChange={onChange}
+    // Using a simpler style here since it's a mock
+    className={`${className} w-full p-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500`}
+  />
 );
 
 
@@ -66,15 +79,15 @@ const getCategoryIcon = (category) => {
 
   switch (lowerCategory) {
     case "photos":
-      return <ImageIcon className="h-4 w-4 text-primary" />;
+      return <ImageIcon className="h-4 w-4 text-blue-600" />;
     case "videos":
-      return <Video className="h-4 w-4 text-primary" />;
+      return <Video className="h-4 w-4 text-blue-600" />;
     case "designs":
-      return <Palette className="h-4 w-4 text-primary" />;
+      return <Palette className="h-4 w-4 text-blue-600" />;
     case "documents":
-      return <FileText className="h-4 w-4 text-primary" />;
+      return <FileText className="h-4 w-4 text-blue-600" />;
     default:
-      return <FileText className="h-4 w-4 text-primary" />;
+      return <FileText className="h-4 w-4 text-blue-600" />;
   }
 };
 
@@ -107,25 +120,29 @@ const getStatusBadge = (status) => {
 
 /**
  * Main Component
+ * FIX: Added userRole prop with a default of 'client'
  */
-export default function Deliverables() {
+export default function Deliverables({ userRole = 'client' }) {
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState("all");
   const [deliverables, setDeliverables] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   
-  // --- DELETE DIALOG STATE RESTORED ---
+  // --- DELETE DIALOG STATE ---
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
-  // Renamed from selectedRenewal to selectedDeliverable for clarity
   const [selectedDeliverable, setSelectedDeliverable] = useState(null); 
-  // ------------------------------------
+  // ---------------------------
   
   // --- PAGINATION STATE ---
   const [currentPage, setCurrentPage] = useState(1);
   // ------------------------
 
-  // Define categories array (now includes icons for the tabs)
+  // --- SEARCH STATE (NEW) ---
+  const [searchTerm, setSearchTerm] = useState("");
+  // --------------------
+
+  // Define categories array (now CORRECTLY defined as a simple JS array of objects)
   const categories = [
     { value: "all", label: "All Files", icon: ListCollapse },
     { value: "photos", label: "Photos", icon: ImageIcon },
@@ -133,6 +150,9 @@ export default function Deliverables() {
     { value: "designs", label: "Designs", icon: Palette },
     { value: "documents", label: "Documents", icon: FileText },
   ];
+  
+  // FIX: Helper to check for admin role
+  const isAdmin = userRole === 'admin';
 
   // Use useCallback for fetchDeliverablesData to prevent issues with useEffect dependency
   const fetchDeliverablesData = useCallback(async () => {
@@ -158,7 +178,7 @@ export default function Deliverables() {
         // The status field is now correctly populated
         status: item.status || "Pending Review",
         type: item.type || "File",
-        file_url: item.file_url || "", // This is likely for internal tracking/download, not the external link
+        file_url: item.file_url || "", 
         category: item.category ? item.category.toLowerCase() : "documents", // FIX: Ensure category is lowercase for consistent filtering
         storageType: item.storage_type || "Cloud",
         storageLink: item.storage_link || "", // Use empty string for better link checking
@@ -183,16 +203,29 @@ export default function Deliverables() {
     fetchDeliverablesData();
   }, [fetchDeliverablesData]);
 
+  // FIX: Reset page when the tab or search term changes (UPDATED)
   useEffect(() => {
     setCurrentPage(1);
-  }, [activeTab]);
+  }, [activeTab, searchTerm]);
 
-  const filterDeliverables = (category) => {
-    if (category === "all") return deliverables;
-    // FIX: Filter based on lowercase category
-    return deliverables.filter((d) => d.category === category);
-  };
-  
+  // --- SEARCH FILTERING LOGIC (NEW) ---
+  const dataFilteredBySearch = useMemo(() => {
+    if (!searchTerm) {
+      return deliverables;
+    }
+    const lowerCaseSearchTerm = searchTerm.toLowerCase();
+
+    return deliverables.filter((d) => {
+      // Search by project name, milestone name, or ID (numbers/names)
+      const projectNameMatch = d.name_project?.toLowerCase().includes(lowerCaseSearchTerm);
+      const milestoneMatch = d.milestone_name?.toLowerCase().includes(lowerCaseSearchTerm);
+      const idMatch = String(d.id)?.toLowerCase().includes(lowerCaseSearchTerm);
+
+      return projectNameMatch || milestoneMatch || idMatch;
+    });
+  }, [deliverables, searchTerm]);
+  // ------------------------------------
+
   // 1. Function to open the delete dialog
   const openDeleteDialog = (deliverable) => {
     setSelectedDeliverable(deliverable); 
@@ -243,7 +276,11 @@ export default function Deliverables() {
   ).length;
 
   // --- PAGINATION & FILTERING ---
-  const dataFilteredByTab = filterDeliverables(activeTab);
+  // 1. Filter by Tab (Category) from the searched data
+  const dataFilteredByTab = useMemo(() => {
+    if (activeTab === "all") return dataFilteredBySearch;
+    return dataFilteredBySearch.filter((d) => d.category === activeTab);
+  }, [dataFilteredBySearch, activeTab]); // UPDATED: uses dataFilteredBySearch
 
   const totalPages = Math.ceil(dataFilteredByTab.length / RECORDS_PER_PAGE);
   const startIndex = (currentPage - 1) * RECORDS_PER_PAGE;
@@ -256,18 +293,26 @@ export default function Deliverables() {
       setCurrentPage(page);
     }
   };
+  
+  // Handler for search input change (NEW)
+  const handleSearchChange = (event) => {
+    setSearchTerm(event.target.value);
+  };
   // -------------------------------
 
   return (
     <div className="space-y-8 p-8 bg-gray-50 min-h-screen">
-      {/* Header */}
-      <div>
-        <h1 className={`text-3xl font-bold mb-2 text-${PRIMARY_COLOR}`}>
-          Deliverables
-        </h1>
-        <p className="text-gray-500">
-          Access all your project files and track approval status
-        </p>
+      {/* Header (UPDATED) */}
+      <div className="flex justify-between items-start">
+        <div>
+          <h1 className={`text-3xl font-bold mb-2 text-${PRIMARY_COLOR}`}>
+            Deliverables
+          </h1>
+          <p className="text-gray-500">
+            Access all your project files and track approval status
+          </p>
+        </div>
+                
       </div>
 
       {/* Stats Cards */}
@@ -276,7 +321,7 @@ export default function Deliverables() {
           <p className="text-sm text-gray-500 mb-1">Total Files</p>
           <div className="flex justify-between items-center">
             <p className="text-3xl font-bold">{totalFiles}</p>
-            <FileText className={`h-8 w-8 text-${PRIMARY_COLOR}`} />
+            <FileText className={`h-8 w-8 text-blue-600`} />
           </div>
         </div>
 
@@ -305,35 +350,79 @@ export default function Deliverables() {
         </div>
       </div>
 
+      
+
       {/* Tabs and Table Container */}
       <div className="border rounded-lg shadow-xl bg-white">
-        {/* Tabs (Category Filter) */}
-        <div className="border-b flex gap-4 p-3 overflow-x-auto">
-          {categories.map((c) => {
-            const Icon = c.icon;
-            return (
-              <button
-                key={c.value}
-                onClick={() => setActiveTab(c.value)}
-                className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-colors whitespace-nowrap ${activeTab === c.value
-                  ? `bg-${PRIMARY_COLOR} text-white shadow-md`
-                  : `text-gray-600 hover:bg-gray-100`
-                  }`}
-              >
-                <Icon
-                  className={`h-4 w-4 ${activeTab === c.value ? "text-white" : `text-${PRIMARY_COLOR}`
+        {/* FIX: Tabs and Controls Container (flex justify-between) */}
+        <div className="border-b flex justify-between items-center p-3">
+          
+          {/* Tabs (Category Filter) - Left Side */}
+          <div className="flex gap-4 overflow-x-auto">
+            {categories.map((c) => {
+              const Icon = c.icon;
+              return (
+                <button
+                  key={c.value}
+                  onClick={() => setActiveTab(c.value)}
+                  className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-colors whitespace-nowrap ${activeTab === c.value
+                    ? `bg-blue-600 text-white shadow-md`
+                    : `text-gray-600 hover:bg-gray-100`
                     }`}
-                />
-                {c.label}
-              </button>
-            );
-          })}
+                >
+                  <Icon
+                    className={`h-4 w-4 ${activeTab === c.value ? "text-white" : `text-blue-600`
+                      }`}
+                  />
+                  {c.label}
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Search Input and Add Button - Right Side */}
+          <div className="flex items-center gap-4 ml-auto"> 
+            
+            {/* Search Input */}
+            <div className="relative w-full sm:w-64">
+              <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-500" />
+              <Input
+                type="text"
+                placeholder="Search name, project, or ID..."
+                value={searchTerm}
+                onChange={handleSearchChange}
+                className="pl-8 pr-8"
+              />
+              {searchTerm && (
+                <button
+                  className="absolute right-0 top-1/2 -translate-y-1/2 h-8 w-8 text-gray-500 hover:text-gray-800 transition-colors"
+                  onClick={() => setSearchTerm("")}
+                  title="Clear Search"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              )}
+            </div>
+            
+            {/* Add New Deliverable Button (Admin Only) */}
+            {isAdmin && (
+              <Button 
+                onClick={() => navigate("/deliverables/add")} 
+                className="flex items-center gap-1"
+              >
+                <PlusCircle className="h-4 w-4" />
+                Add New Deliverable
+              </Button>
+            )}
+          </div>
         </div>
+        
 
         {/* Table */}
         <div className="overflow-x-auto">
+        
           {loading ? (
-            <div className={`p-4 flex justify-center items-center text-${PRIMARY_COLOR}`}>
+            <div className={`p-4 flex justify-center items-center text-blue-600`}>
               <Loader2 className="h-6 w-6 animate-spin mr-2" />
               <span>Loading deliverables...</span>
             </div>
@@ -341,7 +430,7 @@ export default function Deliverables() {
             <div className="p-4 text-red-500 font-medium">{error}</div>
           ) : filteredData.length === 0 ? (
             <div className="p-4 text-gray-500">
-              No deliverables found for this category or page.
+              No deliverables found {searchTerm && `for search "${searchTerm}" `} in the {activeTab === 'all' ? 'list' : activeTab} category.
             </div>
           ) : (
             <table className="min-w-full text-xs divide-y divide-gray-200">
@@ -427,21 +516,28 @@ export default function Deliverables() {
                       >
                         <Eye className="h-4 w-4" />
                       </button>
-                      <button
-                        className="p-1 border rounded-md text-gray-600 hover:bg-blue-100 hover:text-blue-700 transition-colors"
-                        onClick={() => navigate(`/deliverables/edit/${d.id}`)}
-                        title="Edit"
-                      >
-                        <Edit className="h-4 w-4" />
-                      </button>
-                      <button
-                        className="p-1 border rounded-md text-red-600 hover:bg-red-100 transition-colors"
-                        // Calls openDeleteDialog to set the selected item and open the popup
-                        onClick={() => openDeleteDialog(d)} 
-                        title="Delete"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </button>
+                      
+                      {/* FIX: ADMIN/CLIENT ACCESS CONTROL: Show Edit and Delete only to Admin */}
+                      {isAdmin && (
+                        <>
+                          <button
+                            className="p-1 border rounded-md text-gray-600 hover:bg-blue-100 hover:text-blue-700 transition-colors"
+                            onClick={() => navigate(`/deliverables/edit/${d.id}`)}
+                            title="Edit"
+                          >
+                            <Edit className="h-4 w-4" />
+                          </button>
+                          <button
+                            className="p-1 border rounded-md text-red-600 hover:bg-red-100 transition-colors"
+                            // Calls openDeleteDialog to set the selected item and open the popup
+                            onClick={() => openDeleteDialog(d)} 
+                            title="Delete"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        </>
+                      )}
+                      {/* ------------------------------------------------------------- */}
                     </td>
                   </tr>
                 ))}
@@ -451,16 +547,17 @@ export default function Deliverables() {
         </div>
 
         {/* --- PAGINATION CONTROLS --- */}
-        {!loading && !error && dataFilteredByTab.length > RECORDS_PER_PAGE && (
+        {!loading && !error && dataFilteredByTab.length > 0 && ( // UPDATED: Check if there are any filtered results
           <div className="flex justify-between items-center p-3 border-t border-gray-200">
             <p className="text-sm text-gray-600">
               Showing {startIndex + 1} to {Math.min(endIndex, dataFilteredByTab.length)} of {dataFilteredByTab.length} records
+              {searchTerm && ` (filtered from ${deliverables.length})`}
             </p>
             <div className="flex items-center space-x-2">
               <button
                 onClick={() => goToPage(currentPage - 1)}
                 disabled={currentPage === 1}
-                className={`p-2 border rounded-md text-sm disabled:opacity-50 disabled:cursor-not-allowed text-${PRIMARY_COLOR} hover:bg-gray-100`}
+                className={`p-2 border rounded-md text-sm disabled:opacity-50 disabled:cursor-not-allowed text-blue-600 hover:bg-gray-100`}
               >
                 <ChevronLeft className="h-4 w-4" />
               </button>
@@ -470,7 +567,7 @@ export default function Deliverables() {
               <button
                 onClick={() => goToPage(currentPage + 1)}
                 disabled={currentPage === totalPages}
-                className={`p-2 border rounded-md text-sm disabled:opacity-50 disabled:cursor-not-allowed text-${PRIMARY_COLOR} hover:bg-gray-100`}
+                className={`p-2 border rounded-md text-sm disabled:opacity-50 disabled:cursor-not-allowed text-blue-600 hover:bg-gray-100`}
               >
                 <ChevronRight className="h-4 w-4" />
               </button>
@@ -489,11 +586,6 @@ export default function Deliverables() {
                 This action cannot be undone.
               </DialogDescription>
             </DialogHeader>
-            {/* {selectedDeliverable && (
-              <div className="py-2">
-                <p className="text-sm text-gray-600">Milestone: {selectedDeliverable.milestone_name}</p>
-              </div>
-            )} */}
             <DialogFooter>
               <Button variant="outline" onClick={() => setIsDeleteDialogOpen(false)}>
                 Cancel

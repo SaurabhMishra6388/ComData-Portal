@@ -208,7 +208,7 @@ export default function Dashboard() {
       {/* 3. Bottom Section (Chat Widget and Projects Table) */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Chat Widget (1/3 width on large screens) */}
-        <Card className="lg:col-span-1 min-h-[350px]">
+        {/* <Card className="lg:col-span-1 min-h-[350px]">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-xl font-semibold">Chat</CardTitle>
             <div className="flex space-x-2">
@@ -221,7 +221,7 @@ export default function Dashboard() {
             </div>
           </CardHeader>
           <CardContent className="h-[250px] overflow-y-auto flex flex-col justify-end space-y-3">
-            {/* Chat Messages Placeholder */}
+            
             <div className="flex items-start space-x-2">
               <div className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center text-xs">G</div>
               <div className="bg-gray-100 p-2 rounded-lg max-w-[70%]">
@@ -237,7 +237,6 @@ export default function Dashboard() {
               <div className="w-8 h-8 rounded-full bg-blue-500 flex items-center justify-center text-xs text-white">P</div>
             </div>
           </CardContent>
-          {/* Input Placeholder */}
           <div className="p-4 border-t">
             <input
               type="text"
@@ -245,10 +244,10 @@ export default function Dashboard() {
               className="w-full p-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
             />
           </div>
-        </Card>
+        </Card> */}
 
         {/* Projects Table (2/3 width on large screens) */}
-        <Card className="lg:col-span-2">
+        {/* <Card className="lg:col-span-2">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-xl font-semibold">Projects</CardTitle>
             <div className="flex space-x-2">
@@ -292,7 +291,7 @@ export default function Dashboard() {
               </table>
             </div>
           </CardContent>
-        </Card>
+        </Card> */}
       </div>
     </div>
   );

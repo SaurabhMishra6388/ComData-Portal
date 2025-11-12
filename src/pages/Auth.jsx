@@ -55,7 +55,6 @@ const signupSchema = z
 // ----------------------
 export default function Auth() {
   const navigate = useNavigate();
-  // Destructure login, signup, and isAuthenticated from useAuth
   const { isAuthenticated, login, signup } = useAuth(); 
   const { toast } = useToast();
 
@@ -78,7 +77,7 @@ export default function Auth() {
   });
   const [signupErrors, setSignupErrors] = useState({});
 
-  // 💡 Keep Redirect if authenticated for initial loads/manual URL access
+  // Redirect if already authenticated
   useEffect(() => {
     if (isAuthenticated) {
       navigate("/");
@@ -107,6 +106,7 @@ export default function Auth() {
     }
 
     setIsLoading(true);
+    // Call the assumed API function
     const result = await loginUser(
         validatedData.email, 
         validatedData.password, 
@@ -115,7 +115,7 @@ export default function Auth() {
     setIsLoading(false);
 
     if (result.success) {
-      // FIX 1: Call the context login function to update global state immediately
+      // 🟢 FIX 1: Call the context login function to update global state immediately
       login(result.data.token, result.data.user); 
       
       toast({
@@ -123,8 +123,7 @@ export default function Auth() {
         description: `Welcome back, ${result.data.user.role}!`,
       });
       
-      // FIX 2: Explicitly navigate immediately after state update for reliability
-      // This is the most direct way to force the redirect.
+      // 🟢 FIX 2: Explicitly navigate immediately after state update for reliability
       navigate("/"); 
     } else {
       toast({
@@ -156,16 +155,20 @@ export default function Auth() {
       }
     }
 
+    // Since confirmPassword is not sent to the API, we can safely destructure it out
+    const { confirmPassword, ...dataToSend } = validatedData;
+
     setIsLoading(true);
+    // Call the assumed API function
     const result = await signupUser(
-      validatedData.email,
-      validatedData.password,
-      validatedData.role 
+      dataToSend.email,
+      dataToSend.password,
+      dataToSend.role 
     );
     setIsLoading(false);
 
     if (result.success) {
-      // FIX 3: Call the context signup function to update global state immediately
+      // 🟢 FIX 3: Call the context signup function to update global state immediately
       signup(result.data.token, result.data.user);
       
       toast({
@@ -173,7 +176,7 @@ export default function Auth() {
         description: `Welcome as a ${result.data.user.role}!`,
       });
       
-      // FIX 4: Explicitly navigate immediately after state update for reliability
+      // 🟢 FIX 4: Explicitly navigate immediately after state update for reliability
       navigate("/");
     } else {
       toast({
@@ -264,6 +267,7 @@ export default function Auth() {
                       <SelectItem value="admin">Admin</SelectItem>
                     </SelectContent>
                   </Select>
+                  {/* Role error display is kept here, though highly unlikely to show */}
                   {loginErrors.role && (
                     <p className="text-sm text-destructive">
                       {loginErrors.role}
@@ -375,6 +379,7 @@ export default function Auth() {
                       <SelectItem value="admin">Admin</SelectItem>
                     </SelectContent>
                   </Select>
+                  {/* Role error display is kept here, though highly unlikely to show */}
                   {signupErrors.role && (
                     <p className="text-sm text-destructive">
                       {signupErrors.role}

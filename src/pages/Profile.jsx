@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import {
   Card,
   CardContent,
@@ -11,6 +11,7 @@ import {
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input"; // Import Input component for the search box
 import {
   Dialog,
   DialogContent,
@@ -28,7 +29,6 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import {
   Edit,
   Mail,
@@ -40,20 +40,25 @@ import {
   ChevronLeft,
   ChevronRight,
   Trash2,
+  Search, // Import Search icon
 } from "lucide-react";
 import { fetchProfileData, deleteEmployee } from "../../api";
 import { toast } from "@/components/ui/use-toast";
 
-export default function Profile() {
+// FIX: Accept isAdmin prop from the router wrapper
+export default function Profile({ isAdmin }) {
   const navigate = useNavigate();
   // Ensure this BASE_URL matches the port your backend (server.js) is running on
-  const BASE_URL = "http://localhost:5000"; 
+  const BASE_URL = "http://localhost:5000";
 
   const [clientData, setClientData] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
   const [selectedClient, setSelectedClient] = useState(null);
   const [open, setOpen] = useState(false);
+
+  // State for search functionality
+  const [searchTerm, setSearchTerm] = useState("");
 
   // State for custom delete confirmation dialog
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
@@ -122,7 +127,7 @@ export default function Profile() {
     navigate("/add-profile", { state: { client: null } });
   };
 
-const handleDelete = (id) => {
+  const handleDelete = (id) => {
     setClientToDeleteId(id);
     setIsDeleteDialogOpen(true);
   };
@@ -141,7 +146,7 @@ const handleDelete = (id) => {
       );
 
       // ✅ Call the fetch function to ensure the list is synced with the backend
-      await fetchProfilemanage();
+      // await fetchProfilemanage(); // Commented out to prevent full re-fetch after successful deletion
 
       toast({
         title: "Deleted Successfully",
@@ -185,29 +190,50 @@ const handleDelete = (id) => {
   };
 
   // FIX: clientDetail is simply the selectedClient, which holds the correct data
-  const clientDetail = selectedClient; 
+  const clientDetail = selectedClient;
 
-  // Pagination logic
+  // --- Filtering Logic (Search) ---
+  const filteredClients = useMemo(() => {
+    if (!searchTerm) {
+      return clientData;
+    }
+    const lowercasedSearch = searchTerm.toLowerCase();
+    return clientData.filter(
+      (client) =>
+        client.name.toLowerCase().includes(lowercasedSearch) ||
+        client.email.toLowerCase().includes(lowercasedSearch) ||
+        client.phone.toLowerCase().includes(lowercasedSearch)
+    );
+  }, [clientData, searchTerm]);
+
+  // --- Pagination Logic (applied to filtered results) ---
   const indexOfLastRecord = currentPage * recordsPerPage;
   const indexOfFirstRecord = indexOfLastRecord - recordsPerPage;
-  const currentRecords = clientData.slice(indexOfFirstRecord, indexOfLastRecord);
-  const totalPages = Math.ceil(clientData.length / recordsPerPage);
+  const currentRecords = filteredClients.slice(
+    indexOfFirstRecord,
+    indexOfLastRecord
+  );
+  const totalPages = Math.ceil(filteredClients.length / recordsPerPage);
 
   const handlePrevPage = () => setCurrentPage((prev) => Math.max(prev - 1, 1));
   const handleNextPage = () =>
     setCurrentPage((prev) => Math.min(prev + 1, totalPages));
+
+  // Reset to first page when search term changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm]);
 
   // Find the name of the client to be deleted for the dialog title
   const clientToDeleteName = clientToDeleteId
     ? clientData.find((c) => c.id === clientToDeleteId)?.name
     : "this client";
 
-
   return (
-    <div className="space-y-8 p-6">
+    <div className="space-y-0 p-0">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold mb-2">Client Profile</h1>
+          <h1 className="text-1x0 font-bold mb-0">Client Profile</h1>
           <p className="text-muted-foreground">
             Manage your profile information and view account details
           </p>
@@ -224,16 +250,37 @@ const handleDelete = (id) => {
               </CardDescription>
             </div>
 
-            <Button
-              variant="default"
-              size="sm"
-              onClick={handleAddDetails}
-              className="bg-gradient-to-r from-primary to-secondary hover:opacity-90 flex items-center gap-2"
-            >
-              <Edit className="h-4 w-4" />
-              Add Profile
-            </Button>
+            {/* Search and Add Buttons Container */}
+            <div className="flex items-center space-x-4 w-full lg:w-auto">
+              {/* Search Input */}
+              <div className="relative w-full max-w-sm lg:max-w-xs">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  type="text"
+                  placeholder="Search by name, email, or phone..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="pl-10"
+                />
+              </div>
+
+              {/* Admin-only button: Rendered only if isAdmin is true */}
+              {isAdmin && (
+                <Button
+                  variant="default"
+                  size="sm"
+                  onClick={handleAddDetails}
+                  className="bg-gradient-to-r from-primary to-secondary hover:opacity-90 flex items-center gap-2"
+                >
+                  <Edit className="h-4 w-4" />
+                  Add Profile
+                </Button>
+              )}
+            </div>
           </CardHeader>
+          {/* --- Separator --- */}
+          <hr className="my-0 border-gray-200" />
+          {/* ----------------- */}
 
           <CardContent className="overflow-x-auto">
             <table className="min-w-full border border-gray-200 rounded-lg text-sm">
@@ -295,7 +342,9 @@ const handleDelete = (id) => {
                       colSpan="10"
                       className="text-center py-8 text-muted-foreground"
                     >
-                      No client data available.
+                      {searchTerm
+                        ? `No clients found matching "${searchTerm}".`
+                        : "No client data available."}
                     </td>
                   </tr>
                 ) : (
@@ -339,22 +388,28 @@ const handleDelete = (id) => {
                         >
                           View
                         </Button>
-                        <Button
-                          variant="default"
-                          size="sm"
-                          onClick={() => handleEditDetails(client)}
-                          className="bg-gradient-to-r from-primary to-secondary hover:opacity-90"
-                        >
-                          <Edit className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          variant="destructive"
-                          size="sm"
-                          onClick={() => handleDelete(client.id)}
-                          className="bg-red-500 hover:bg-red-700 text-white"
-                        >
-                          Delete
-                        </Button>
+
+                        {/* Admin-only buttons: Rendered only if isAdmin is true */}
+                        {isAdmin && (
+                          <>
+                            <Button
+                              variant="default"
+                              size="sm"
+                              onClick={() => handleEditDetails(client)}
+                              className="bg-gradient-to-r from-primary to-secondary hover:opacity-90"
+                            >
+                              <Edit className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="destructive"
+                              size="sm"
+                              onClick={() => handleDelete(client.id)}
+                              className="bg-red-500 hover:bg-red-700 text-white"
+                            >
+                              Delete
+                            </Button>
+                          </>
+                        )}
                       </td>
                     </tr>
                   ))
@@ -363,7 +418,7 @@ const handleDelete = (id) => {
             </table>
 
             {/* Pagination Controls */}
-            {clientData.length > recordsPerPage && (
+            {filteredClients.length > recordsPerPage && (
               <div className="flex justify-between items-center mt-4">
                 <Button
                   variant="outline"
@@ -390,7 +445,7 @@ const handleDelete = (id) => {
         </Card>
       </div>
 
-      {/* View Details Dialog */}
+      {/* View Details Dialog - unchanged */}
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="max-w-2xl p-4 sm:p-6">
           {clientDetail && (
@@ -413,7 +468,7 @@ const handleDelete = (id) => {
                     <div className="flex flex-col items-center text-center space-y-3">
                       {/* FIX: Ensure clientDetail.image is correctly used here */}
                       <img
-                        src={clientDetail.image} 
+                        src={clientDetail.image}
                         alt={clientDetail.name}
                         className="h-24 w-24 rounded-full object-cover border"
                         onError={(e) => {
@@ -507,7 +562,7 @@ const handleDelete = (id) => {
         </DialogContent>
       </Dialog>
 
-      {/* Custom Delete Confirmation Dialog */}
+      {/* Custom Delete Confirmation Dialog - unchanged */}
       <AlertDialog
         open={isDeleteDialogOpen}
         onOpenChange={setIsDeleteDialogOpen}
